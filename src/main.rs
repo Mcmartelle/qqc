@@ -14,6 +14,7 @@ enum EngineError {
     MissingOperands,
     MismatchType,
     UnknownCommand(String),
+    NoAnswer,
 }
 
 struct Evaluator {
@@ -110,7 +111,7 @@ fn parse(input: &str) -> Result<Vec<Command>, EngineError> {
         let command: Vec<_> = line.split_whitespace().collect();
 
         match command.last() {
-            Some(x) if *x == "+" => {
+            Some(x) if (*x == "+" || *x == "plus" || *x == "add") => {
                 output.push(parse_add(&command)?);
             }
             Some(x) if *x == "-" => {
@@ -155,6 +156,36 @@ fn test_parse_add() -> Result<(), EngineError> {
 }
 
 #[test]
+fn test_parse_add_plus() -> Result<(), EngineError> {
+    let input = "1 2 3 +\n4 5 plus";
+    
+    let commands = parse(input)?;
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(15.0));
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_add_plus_add() -> Result<(), EngineError> {
+    let input = "1 2 3 +\n4 5 plus\n 6 add";
+    
+    let commands = parse(input)?;
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(21.0));
+
+    Ok(())
+}
+
+#[test]
 fn test_parse_subtract() -> Result<(), EngineError> {
     let input = "20 2 -\n3 5 -";
     
@@ -191,7 +222,16 @@ fn main() -> Result<(), EngineError> {
         let commands = parse(&contents)?;
         let answer = engine.evaluate(&commands)?;
 
-        println!("{:?}", answer);
+        match answer {
+            Value::Nothing => println!("No answer."),
+            Value::Operand(ans) => {
+                if ans.fract() == 0.0 {
+                    println!("{:?}", ans as i64);
+                } else {
+                    println!("{:?}", ans);
+                }
+            }
+        }
     }
 
     Ok(())

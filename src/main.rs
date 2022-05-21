@@ -191,7 +191,7 @@ fn parse(input: &str) -> Result<Vec<Command>, EngineError> {
         let command: Vec<_> = line.split_whitespace().collect();
 
         match command.first() { // If the line starts with # this is a comment line, skip the parsing and ignore.
-            Some(x) if (*x == "#") => continue,
+            Some(x) if (x.starts_with("#")) => continue,
             Some(_) => {},
             None => {},
         }
@@ -357,7 +357,7 @@ fn test_parse_power() -> Result<(), EngineError> {
 
 #[test]
 fn test_parse_comment() -> Result<(), EngineError> {
-    let input = "# 2 1 +\n3 2 +\n4 5 plus";
+    let input = "#2 2\n# 2 1 +\n3 2 +\n4 5 plus";
     
     let commands = parse(input)?;
 

@@ -4,6 +4,7 @@ enum Command {
     Multiply(Vec<Value>),
     Divide(Vec<Value>),
     Power(Vec<Value>),
+    Modulo(Vec<Value>),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -92,6 +93,18 @@ impl Evaluator {
             .reduce(|acc: f64, x: f64| acc.powf(x)).unwrap()))
     }
 
+    fn modulo(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
+        operands.insert(0, self.answer.clone());
+        Ok(Value::Operand(operands.into_iter()
+            .filter_map(|v|
+                match v {
+                    Value::Nothing => None,
+                    Value::Operand(num) => Some(num)  
+                }
+            )
+            .reduce(|acc: f64, x: f64| acc % x).unwrap()))
+    }
+
     fn evaluate(mut self, commands: &[Command]) -> Result<Value, EngineError> {
         for command in commands {
             match command {
@@ -113,6 +126,10 @@ impl Evaluator {
                 }
                 Command::Power(operands) => {
                     self.answer = self.power(operands.to_vec())?;
+                    self.answers.push(self.answer.clone());
+                }
+                Command::Modulo(operands) => {
+                    self.answer = self.modulo(operands.to_vec())?;
                     self.answers.push(self.answer.clone());
                 }
             }
@@ -184,6 +201,16 @@ fn parse_power(input: &[&str]) -> Result<Command, EngineError> {
     Ok(Command::Power(operands))
 }
 
+fn parse_modulo(input: &[&str]) -> Result<Command, EngineError> {
+    if input.len() <= 1 {
+        return Err(EngineError::MissingOperands);
+    }
+
+    let operands = parse_operands(input.split_last().unwrap().1)?;
+
+    Ok(Command::Modulo(operands))
+}
+
 fn parse(input: &str) -> Result<Vec<Command>, EngineError> {
     let mut output = vec![];
 
@@ -206,11 +233,14 @@ fn parse(input: &str) -> Result<Vec<Command>, EngineError> {
             Some(x) if (*x == "x" || *x == "*" || *x == "times" || *x == "multiply") => {
                 output.push(parse_multiply(&command)?);
             }
-            Some(x) if (*x == "/" || *x == "divide") => {
+            Some(x) if (*x == "/" || *x == "div" || *x == "divide") => {
                 output.push(parse_divide(&command)?);
             }
             Some(x) if (*x == "**" || *x == "^" || *x == "power") => {
                 output.push(parse_power(&command)?);
+            }
+            Some(x) if (*x == "%" || *x == "mod" || *x == "modulus" || *x == "modulo") => {
+                output.push(parse_modulo(&command)?);
             }
             Some(name) => return Err(EngineError::UnknownCommand(name.to_string())),
             None => {}
@@ -327,7 +357,7 @@ fn test_parse_multiply() -> Result<(), EngineError> {
 
 #[test]
 fn test_parse_divide() -> Result<(), EngineError> {
-    let input = "100 2 /\n5 divide";
+    let input = "100 2 /\n5 divide\n2 div";
     
     let commands = parse(input)?;
 
@@ -335,7 +365,7 @@ fn test_parse_divide() -> Result<(), EngineError> {
 
     let result = evaluator.evaluate(&commands)?;
 
-    assert_eq!(result, Value::Operand(10.0));
+    assert_eq!(result, Value::Operand(5.0));
 
     Ok(())
 }
@@ -366,6 +396,21 @@ fn test_parse_comment() -> Result<(), EngineError> {
     let result = evaluator.evaluate(&commands)?;
 
     assert_eq!(result, Value::Operand(14.0));
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_modulus() -> Result<(), EngineError> {
+    let input = "29 17 %\n7 mod\n3 modulus\n3 modulo";
+    
+    let commands = parse(input)?;
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(2.0));
 
     Ok(())
 }

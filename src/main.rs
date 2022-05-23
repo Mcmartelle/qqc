@@ -1,4 +1,8 @@
+use std::collections::HashMap;
+
 enum Command {
+    SetVar(String),
+    GetVar(String),
     Add(Vec<Value>),
     Subtract(Vec<Value>),
     Multiply(Vec<Value>),
@@ -11,16 +15,23 @@ enum Command {
 enum Value {
     Nothing,
     Operand(f64),
+    Variable(String),
 }
 
 #[derive(Debug)]
 enum EngineError {
+    TooManyVariableNames,
+    MissingVariableName,
     MissingOperands,
     MismatchType,
     UnknownCommand(String),
+    MissingVariable(String),
+    EvaluatorAnswerShouldNotBeValueVariable,
+    NoValuesInQueue,
 }
 
 struct Evaluator {
+    vars: HashMap<String, f64>,
     answers: Vec<Value>, // Saving answers to display at the end, not used in evaluation.
     answer: Value, // The main accumulator
 }
@@ -28,6 +39,7 @@ struct Evaluator {
 impl Evaluator {
     fn new() -> Evaluator {
         Self {
+            vars: HashMap::new(),
             answers: vec![],
             answer: Value::Nothing,
         }
@@ -35,14 +47,30 @@ impl Evaluator {
 
     fn add(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
         operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
+        let mut get_var_error_flag = false;
+        let mut get_var_error_name = ""; 
+        let result = Ok(Value::Operand(operands.into_iter()
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => match self.vars.get(&var_name) {
+                        Some(var_val) => Some(var_val.clone()),
+                        None => {
+                            get_var_error_flag = true;
+                            get_var_error_name = &*var_name;
+                            None
+                        }
+                    }
                 }
             )
-            .reduce(|acc: f64, x: f64| acc + x).unwrap()))
+            .reduce(|acc: f64, x: f64| acc + x).unwrap()));
+
+        if get_var_error_flag {
+            return Err(EngineError::MissingVariable(get_var_error_name.into()));
+        } else {
+            return result;
+        }
     }
 
     fn subtract(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
@@ -51,7 +79,8 @@ impl Evaluator {
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => None,
                 }
             )
             .reduce(|acc: f64, x: f64| acc - x).unwrap()))
@@ -63,7 +92,8 @@ impl Evaluator {
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => None,
                 }
             )
             .reduce(|acc: f64, x: f64| acc * x).unwrap()))
@@ -75,7 +105,8 @@ impl Evaluator {
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => None,
                 }
             )
             .reduce(|acc: f64, x: f64| acc / x).unwrap()))
@@ -87,7 +118,8 @@ impl Evaluator {
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => None,
                 }
             )
             .reduce(|acc: f64, x: f64| acc.powf(x)).unwrap()))
@@ -99,7 +131,8 @@ impl Evaluator {
             .filter_map(|v|
                 match v {
                     Value::Nothing => None,
-                    Value::Operand(num) => Some(num)  
+                    Value::Operand(num) => Some(num),
+                    Value::Variable(var_name) => None,
                 }
             )
             .reduce(|acc: f64, x: f64| acc % x).unwrap()))
@@ -108,6 +141,16 @@ impl Evaluator {
     fn evaluate(mut self, commands: &[Command]) -> Result<Value, EngineError> {
         for command in commands {
             match command {
+                Command::SetVar(name) => { match self.answer {
+                        Value::Nothing => return Err(EngineError::NoValuesInQueue),
+                        Value::Operand(num) => self.vars.insert(name.into(), num)
+                        Value::Variable() => return Err(EngineError::EvaluatorAnswerShouldNotBeValueVariable)
+                    }
+                }
+                Command::GetVar(name) => match self.vars.get(name) {
+                    Some(val) => {},
+                    None => return Err(EngineError::MissingVariable(name.into())),
+                }
                 Command::Add(operands) => {
                     self.answer = self.add(operands.to_vec())?;
                     self.answers.push(self.answer.clone());
@@ -150,6 +193,23 @@ fn parse_float(input: &str) -> Result<Value, EngineError> {
 fn parse_operands(operand_strings: &[&str]) -> Result<Vec<Value>, EngineError> {
     Ok(operand_strings.iter().map(|s| parse_float(s).unwrap()).collect())
 }
+
+fn parse_var_name(var_name: &str) -> Result<String, EngineError> {
+    Ok(var_name.into())
+}
+
+fn parse_set_var(input: &[&str]) -> Result<Command, EngineError> {
+    if input.len() <= 1 {
+        return Err(EngineError::MissingVariableName);
+    }
+    if input.len() >= 3 {
+        return Err(EngineError::TooManyVariableNames);
+    }
+
+    let var_name = parse_var_name(input[1])?;
+    
+    Ok(Command::SetVar(var_name))
+} 
 
 fn parse_add(input: &[&str]) -> Result<Command, EngineError> {
     if input.len() <= 1 {
@@ -219,6 +279,10 @@ fn parse(input: &str) -> Result<Vec<Command>, EngineError> {
 
         match command.first() { // If the line starts with # this is a comment line, skip the parsing and ignore.
             Some(x) if (x.starts_with("#")) => continue,
+            Some(x) if (*x == "=") => {
+                output.push(parse_set_var(&command)?);
+                continue;
+            }
             Some(_) => {},
             None => {},
         }

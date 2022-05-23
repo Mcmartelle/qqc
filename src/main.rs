@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 enum Command {
     SetVar(String),
-    GetVar(String),
     Add(Vec<Value>),
     Subtract(Vec<Value>),
     Multiply(Vec<Value>),
@@ -23,7 +22,7 @@ enum EngineError {
     TooManyVariableNames,
     MissingVariableName,
     MissingOperands,
-    MismatchType,
+    // MismatchType,
     UnknownCommand(String),
     MissingVariable(String),
     EvaluatorAnswerShouldNotBeValueVariable,
@@ -45,10 +44,10 @@ impl Evaluator {
         }
     }
 
-    fn add(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
+    fn operate(&self, mut operands: Vec<Value>, operator: fn(f64, f64) -> f64) -> Result<Value, EngineError> {
         operands.insert(0, self.answer.clone());
         let mut get_var_error_flag = false;
-        let mut get_var_error_name = ""; 
+        let mut get_var_error_name: String = "".to_string(); 
         let result = Ok(Value::Operand(operands.into_iter()
             .filter_map(|v|
                 match v {
@@ -58,13 +57,13 @@ impl Evaluator {
                         Some(var_val) => Some(var_val.clone()),
                         None => {
                             get_var_error_flag = true;
-                            get_var_error_name = &*var_name;
+                            get_var_error_name = var_name;
                             None
                         }
                     }
                 }
             )
-            .reduce(|acc: f64, x: f64| acc + x).unwrap()));
+            .reduce(|acc: f64, x: f64| operator(acc, x)).unwrap()));
 
         if get_var_error_flag {
             return Err(EngineError::MissingVariable(get_var_error_name.into()));
@@ -73,106 +72,60 @@ impl Evaluator {
         }
     }
 
-    fn subtract(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
-        operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
-            .filter_map(|v|
-                match v {
-                    Value::Nothing => None,
-                    Value::Operand(num) => Some(num),
-                    Value::Variable(var_name) => None,
-                }
-            )
-            .reduce(|acc: f64, x: f64| acc - x).unwrap()))
-    }
-
-    fn multiply(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
-        operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
-            .filter_map(|v|
-                match v {
-                    Value::Nothing => None,
-                    Value::Operand(num) => Some(num),
-                    Value::Variable(var_name) => None,
-                }
-            )
-            .reduce(|acc: f64, x: f64| acc * x).unwrap()))
-    }
-
-    fn divide(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
-        operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
-            .filter_map(|v|
-                match v {
-                    Value::Nothing => None,
-                    Value::Operand(num) => Some(num),
-                    Value::Variable(var_name) => None,
-                }
-            )
-            .reduce(|acc: f64, x: f64| acc / x).unwrap()))
-    }
-
-    fn power(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
-        operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
-            .filter_map(|v|
-                match v {
-                    Value::Nothing => None,
-                    Value::Operand(num) => Some(num),
-                    Value::Variable(var_name) => None,
-                }
-            )
-            .reduce(|acc: f64, x: f64| acc.powf(x)).unwrap()))
-    }
-
-    fn modulo(&self, mut operands: Vec<Value>) -> Result<Value, EngineError> {
-        operands.insert(0, self.answer.clone());
-        Ok(Value::Operand(operands.into_iter()
-            .filter_map(|v|
-                match v {
-                    Value::Nothing => None,
-                    Value::Operand(num) => Some(num),
-                    Value::Variable(var_name) => None,
-                }
-            )
-            .reduce(|acc: f64, x: f64| acc % x).unwrap()))
-    }
-
     fn evaluate(mut self, commands: &[Command]) -> Result<Value, EngineError> {
+            
+        fn add(acc: f64, x: f64) -> f64 {
+            acc + x
+        }
+        fn subtract(acc: f64, x: f64) -> f64 {
+            acc - x
+        }
+        fn multiply(acc: f64, x: f64) -> f64 {
+            acc * x
+        }
+        fn divide(acc: f64, x: f64) -> f64 {
+            acc / x
+        }
+        fn power(acc: f64, x: f64) -> f64 {
+            acc.powf(x)
+        }
+        fn modulo(acc: f64, x: f64) -> f64 {
+            acc % x
+        }
+
         for command in commands {
             match command {
-                Command::SetVar(name) => { match self.answer {
+                Command::SetVar(name) => {
+                    match self.answer {
                         Value::Nothing => return Err(EngineError::NoValuesInQueue),
-                        Value::Operand(num) => self.vars.insert(name.into(), num)
-                        Value::Variable() => return Err(EngineError::EvaluatorAnswerShouldNotBeValueVariable)
+                        Value::Operand(num) => {self.vars.insert(name.into(), num.clone());}
+                        Value::Variable(_) => return Err(EngineError::EvaluatorAnswerShouldNotBeValueVariable)
                     }
-                }
-                Command::GetVar(name) => match self.vars.get(name) {
-                    Some(val) => {},
-                    None => return Err(EngineError::MissingVariable(name.into())),
+                    self.answer = Value::Nothing;
+                    self.answers.push(self.answer.clone());
                 }
                 Command::Add(operands) => {
-                    self.answer = self.add(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), add)?;
                     self.answers.push(self.answer.clone());
                 }
                 Command::Subtract(operands) => {
-                    self.answer = self.subtract(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), subtract)?;
                     self.answers.push(self.answer.clone());
                 }
                 Command::Multiply(operands) => {
-                    self.answer = self.multiply(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), multiply)?;
                     self.answers.push(self.answer.clone());
                 }
                 Command::Divide(operands) => {
-                    self.answer = self.divide(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), divide)?;
                     self.answers.push(self.answer.clone());
                 }
                 Command::Power(operands) => {
-                    self.answer = self.power(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), power)?;
                     self.answers.push(self.answer.clone());
                 }
                 Command::Modulo(operands) => {
-                    self.answer = self.modulo(operands.to_vec())?;
+                    self.answer = self.operate(operands.to_vec(), modulo)?;
                     self.answers.push(self.answer.clone());
                 }
             }
@@ -186,7 +139,7 @@ fn parse_float(input: &str) -> Result<Value, EngineError> {
 
     match result {
         Ok(x) => Ok(Value::Operand(x)),
-        _ => Err(EngineError::MismatchType),
+        _ => Ok(Value::Variable(input.into())),
     }
 }
 
@@ -318,6 +271,25 @@ fn test_eval_add() -> Result<(), EngineError> {
     let commands = vec![
         Command::Add(vec![Value::Operand(1.0), Value::Operand(2.0)]),
         Command::Add(vec![Value::Operand(3.0), Value::Operand(4.0), Value::Operand(5.0)]),
+    ];
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(15.0));
+
+    Ok(())
+}
+
+#[test]
+fn test_eval_variables() -> Result<(), EngineError> {
+    let commands = vec![
+        Command::Add(vec![Value::Operand(5.0), Value::Operand(5.0)]),
+        Command::SetVar(String::from("derp")),
+        Command::Add(vec![Value::Operand(2.0), Value::Operand(2.0)]),
+        Command::SetVar(String::from("blorp")),
+        Command::Add(vec![Value::Operand(5.0), Value::Variable(String::from("derp"))]),
     ];
 
     let evaluator = Evaluator::new();
@@ -479,6 +451,36 @@ fn test_parse_modulus() -> Result<(), EngineError> {
     Ok(())
 }
 
+#[test]
+fn test_parse_variables() -> Result<(), EngineError> {
+    let input = "5 5 +\n= derp\n2 2 +\n= blorp\n5 derp add";
+    
+    let commands = parse(input)?;
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(15.0));
+
+    Ok(())
+}
+
+#[test]
+fn test_parse_negatives() -> Result<(), EngineError> {
+    let input = "5 -5 +";
+    
+    let commands = parse(input)?;
+
+    let evaluator = Evaluator::new();
+
+    let result = evaluator.evaluate(&commands)?;
+
+    assert_eq!(result, Value::Operand(0.0));
+
+    Ok(())
+}
+
 fn main() -> Result<(), EngineError> {
     for arg in std::env::args().skip(1) {
         let contents = std::fs::read_to_string(arg).unwrap();
@@ -487,13 +489,18 @@ fn main() -> Result<(), EngineError> {
         let answer = engine.evaluate(&commands)?;
 
         match answer {
-            Value::Nothing => println!("No answer."),
+            Value::Nothing => {
+                return Err(EngineError::NoValuesInQueue);
+            },
             Value::Operand(ans) => {
                 if ans.fract() == 0.0 {
                     println!("{:?}", ans as i64);
                 } else {
                     println!("{:?}", ans);
                 }
+            },
+            Value::Variable(_) => {
+                return Err(EngineError::EvaluatorAnswerShouldNotBeValueVariable);
             }
         }
     }

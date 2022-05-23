@@ -1,0 +1,29 @@
+# declaring input variables
+1 +
+= a
+10 +
+= b
+-11 +
+= c
+
+# quadratic formula
+b 2 ^
+= bsquared
+
+4 a c *
+= 4ac
+
+bsquared 4ac -
+0.5 ^
+= root
+
+b -1 *
+root +
+= numerator
+
+2 a *
+= denominator
+
+numerator denominator /
+
+# answer should be -11 or 1 depending on the +/- of root

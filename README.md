@@ -22,6 +22,9 @@ or this function in Scheme:
 (+ (- (* 5 12 66) 15) 5)
 ```
 
+Mockup design of eventual GUI:
+![GUI idea](assets/gui_idea.png)
+
 ## Running
 
 To calculate a qq file:

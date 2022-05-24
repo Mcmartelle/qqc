@@ -22,7 +22,7 @@ or this function in Scheme:
 (+ (- (* 5 12 66) 15) 5)
 ```
 
-Mockup design of eventual GUI:
+Mockup design of eventual GUI showing intermediate answers interactively:
 ![GUI idea](assets/gui_idea.png)
 
 ## Running

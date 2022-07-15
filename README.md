@@ -23,7 +23,7 @@ or this function in Scheme:
 ```
 
 Mockup design of eventual GUI showing intermediate answers interactively:
-![GUI idea](assets/gui_idea.png)
+![GUI idea](assets/gui_idea.jpg)
 
 ## Running
 
